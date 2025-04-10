@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\InventoryTransactionController;
 use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
@@ -16,51 +17,54 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    return auth()->check() ? redirect('/products') : view('welcome');
+})->name('home');  // Add name for intended redirect
+
+// Authentication Routes
+Route::middleware('guest')->group(function() {
+    Route::controller(LoginController::class)->group(function() {
+        Route::get('/login', 'showLoginForm')->name('login');
+        Route::post('/login', 'login');
+    });
 });
 
-// Product CRUD Routes with 'products' prefix
-Route::prefix('products')
-    ->controller(ProductController::class)
-    ->name('products.')
-    ->group(function () {
-        // Standard CRUD Routes
-        Route::get('/', 'index')->name('index');
-        Route::get('/create', 'create')->name('create');
-        Route::post('/', 'store')->name('store');
-        Route::get('/{product}', 'show')->name('show');
-        Route::get('/{product}/edit', 'edit')->name('edit');
-        Route::put('/{product}', 'update')->name('update');
-        Route::delete('/{product}', 'destroy')->name('destroy');
+// Logout Route (must be separate from guest group)
+Route::post('/logout', [LoginController::class, 'logout'])
+    ->middleware('auth')
+    ->name('logout');
 
-        // Stock Management Routes (nested under product ID)
-        Route::prefix('/{product}')->group(function () {
-            // Add Stock Form and Action
-            Route::get('/add-stock', [ProductController::class, 'showAddStockForm'])->name('add-stock.form');
-            Route::post('/add-stock', [ProductController::class, 'addStock'])->name('add-stock');
+// Protected Routes (require authentication)
+Route::middleware('auth')->group(function() {
+    // Product CRUD Routes with 'products' prefix
+    Route::prefix('products')
+        ->controller(ProductController::class)
+        ->name('products.')
+        ->group(function () {
+            // Standard CRUD Routes
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{product}', 'show')->name('show');
+            Route::get('/{product}/edit', 'edit')->name('edit');
+            Route::put('/{product}', 'update')->name('update');
+            Route::delete('/{product}', 'destroy')->name('destroy');
 
-            // Use Stock Form and Action
-            Route::get('/use-stock', [ProductController::class, 'showUseStockForm'])->name('use-stock.form');
-            Route::post('/use-stock', [ProductController::class, 'useStock'])->name('use-stock');
+            // Stock Management Routes
+            Route::prefix('/{product}')->group(function () {
+                Route::get('/add-stock', 'showAddStockForm')->name('add-stock.form');
+                Route::post('/add-stock', 'addStock')->name('add-stock');
+                Route::get('/use-stock', 'showUseStockForm')->name('use-stock.form');
+                Route::post('/use-stock', 'useStock')->name('use-stock');
+            });
         });
 
-    });
-
-Route::prefix('transactions')
-    ->controller(InventoryTransactionController::class)
-    ->name('transactions.')
-    ->group(function () {
-        // Main Transactions List with Filters
-        Route::get('/', 'index')->name('index');
-
-        // Data Export
-        Route::get('/export', 'export')->name('export');
-
-        // Analytics Dashboard
-        Route::get('/dashboard', 'dashboard')->name('dashboard');
-
-        // If you add these later:
-        // Route::get('/summary', 'summary')->name('summary');
-        // Route::get('/{transaction}', 'show')->name('show');
-    });
-
+    // Transactions Routes
+    Route::prefix('transactions')
+        ->controller(InventoryTransactionController::class)
+        ->name('transactions.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/export', 'export')->name('export');
+            Route::get('/dashboard', 'dashboard')->name('dashboard');
+        });
+});
